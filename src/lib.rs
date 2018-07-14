@@ -13,6 +13,12 @@ extern crate compact_macros;
 #[macro_use]
 extern crate pretty_assertions;
 
+#[cfg(feature = "serde-serialization")]
+extern crate serde;
+#[cfg(feature = "serde-serialization")]
+#[macro_use]
+extern crate serde_derive;
+
 use nalgebra::{Vector2, Point2, Rotation2,
 Vector3, Point3, Isometry3, Affine3, Perspective3,
 Vector4, Matrix4, dot};

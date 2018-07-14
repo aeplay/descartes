@@ -82,6 +82,7 @@ impl HasBoundingBox for LineSegment {
 }
 
 #[cfg_attr(feature = "compact_containers", derive(Compact))]
+#[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
 #[cfg_attr(test, derive(PartialEq))]
 #[derive(Clone, Debug)]
 pub struct LinePath {

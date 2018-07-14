@@ -64,6 +64,7 @@ impl CurvedSegment {
 }
 
 #[cfg_attr(feature = "compact_containers", derive(Compact))]
+#[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 pub struct CurvedPath {
     points: VecLike<P2>,

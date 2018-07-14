@@ -5,6 +5,7 @@ use areas::Area;
 
 #[derive(Clone)]
 #[cfg_attr(feature = "compact_containers", derive(Compact))]
+#[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
 pub struct Band {
     pub path: LinePath,
     pub width_left: N,

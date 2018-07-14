@@ -39,6 +39,7 @@ impl LineSegment {
 /// Everything "right of" the boundary is considered "inside"
 #[derive(Clone)]
 #[cfg_attr(feature = "compact_containers", derive(Compact))]
+#[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
 pub struct PrimitiveArea {
     pub boundary: ClosedLinePath,
 }
@@ -90,6 +91,7 @@ impl<'a> RoughEq for &'a PrimitiveArea {
 
 #[derive(Clone)]
 #[cfg_attr(feature = "compact_containers", derive(Compact))]
+#[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
 pub struct Area {
     pub primitives: VecLike<PrimitiveArea>,
 }

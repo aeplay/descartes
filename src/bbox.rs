@@ -1,5 +1,6 @@
 use {N, P2, V2, NEG_INFINITY, INFINITY};
 
+#[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone)]
 pub struct BoundingBox {
     pub min: P2,
