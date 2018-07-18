@@ -37,7 +37,7 @@ impl LineSegment {
 
 /// Represents a filled area bounded by a clockwise boundary.
 /// Everything "right of" the boundary is considered "inside"
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "compact_containers", derive(Compact))]
 #[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
 pub struct PrimitiveArea {
@@ -89,7 +89,7 @@ impl<'a> RoughEq for &'a PrimitiveArea {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "compact_containers", derive(Compact))]
 #[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
 pub struct Area {
