@@ -265,6 +265,14 @@ fn other_subject(subject: usize) -> usize {
 
 impl Area {
     pub fn split<'a>(&'a self, b: &'a Self) -> AreaSplitResult<'a> {
+        self.split_helper(b, false).expect("should always return Some(_) with return_on_no_intersection = false")
+    }
+
+    pub fn split_if_intersects<'a>(&'a self, b: &'a Self) -> Option<AreaSplitResult<'a>> {
+        self.split_helper(b, true)
+    }
+
+    fn split_helper<'a>(&'a self, b: &'a Self, return_on_no_intersection: bool) -> Option<AreaSplitResult<'a>> {
         let ab = [self, b];
 
         let mut intersection_distances_points = [
@@ -272,15 +280,22 @@ impl Area {
             vec![Vec::<(N, P2)>::new(); b.primitives.len()],
         ];
 
+        let mut any_intersection = false;
+
         for (i_a, primitive_a) in self.primitives.iter().enumerate() {
             for (i_b, primitive_b) in b.primitives.iter().enumerate() {
                 for intersection in (&primitive_a.boundary, &primitive_b.boundary).intersect() {
+                    any_intersection = true;
                     intersection_distances_points[SUBJECT_A][i_a]
                         .push((intersection.along_a, intersection.position));
                     intersection_distances_points[SUBJECT_B][i_b]
                         .push((intersection.along_b, intersection.position));
                 }
             }
+        }
+
+        if return_on_no_intersection && !any_intersection {
+            return None;
         }
 
         let boundary_pieces = SUBJECTS
@@ -446,9 +461,9 @@ impl Area {
         //         .collect::<Vec<_>>()
         // );
 
-        AreaSplitResult {
+        Some(AreaSplitResult {
             pieces: unique_boundary_pieces,
-        }
+        })
     }
 }
 
