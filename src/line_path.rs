@@ -307,7 +307,7 @@ impl LinePath {
 pub struct ConcatError;
 
 // TODO: this is a super hacky newtype to avoid weird problems with impl Iterator<Item = V2>
-pub struct ShiftVector(V2);
+pub struct ShiftVector(pub V2);
 
 /// Combination/Modification
 impl LinePath {
