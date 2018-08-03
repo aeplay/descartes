@@ -353,23 +353,13 @@ impl LinePath {
         )
     }
 
-    pub fn dash(&self, dash_length: N, gap_length: N) -> Vec<LinePath> {
-        let mut on_dash = true;
-        let mut position = 0.0;
-        let mut dashes = Vec::new();
-
-        while position < self.length() {
-            let old_position = position;
-            if on_dash {
-                position += dash_length;
-                dashes.extend(self.subsection(old_position, position));
-            } else {
-                position += gap_length;
-            }
-            on_dash = !on_dash;
+    pub fn dash(&self, dash_length: N, gap_length: N) -> DashIterator {
+        DashIterator {
+            path: self,
+            dash_length,
+            gap_length,
+            position: 0.0
         }
-
-        dashes
     }
 
     pub fn shift_orthogonally_vectors<'a>(&'a self) -> impl Iterator<Item = ShiftVector> + 'a {
@@ -410,6 +400,29 @@ impl LinePath {
                 .chain(Some(new_end))
                 .collect(),
         )
+    }
+}
+
+pub struct DashIterator<'a> {
+    path: &'a LinePath,
+    dash_length: N,
+    gap_length: N,
+    position: N
+}
+
+impl<'a> Iterator for DashIterator<'a> {
+    type Item = Option<LinePath>;
+
+    fn next(&mut self) -> Option<Option<LinePath>> {
+        if self.position < self.path.length() {
+            let old_position = self.position;
+            self.position += self.dash_length;
+            let dash = self.path.subsection(old_position, self.position);
+            self.position += self.gap_length;
+            Some(dash)
+        } else {
+            None
+        }
     }
 }
 
