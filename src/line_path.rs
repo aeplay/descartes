@@ -306,6 +306,9 @@ impl LinePath {
 #[derive(Debug)]
 pub struct ConcatError;
 
+// TODO: this is a super hacky newtype to avoid weird problems with impl Iterator<Item = V2>
+pub struct ShiftVector(V2);
+
 /// Combination/Modification
 impl LinePath {
     pub fn concat(&self, other: &Self) -> Result<Self, ConcatError> {
@@ -369,26 +372,30 @@ impl LinePath {
         dashes
     }
 
-    pub fn shift_orthogonally(&self, shift_to_right: N) -> Option<Self> {
-        let angle_bisectors = self.points.windows(3).map(|triplet| {
-            (LineSegment(triplet[0], triplet[1]).direction()
+    pub fn shift_orthogonally_vectors<'a>(&'a self) -> impl Iterator<Item = ShiftVector> + 'a {
+        // TODO: THIS IS WRONG!! THE SHIFT DISTANCE DEPENDS ON ANGLE!!!
+        let angle_bisectors = self.points.windows(3).map(|triplet| -> ShiftVector {
+            ShiftVector((LineSegment(triplet[0], triplet[1]).direction()
                 + LineSegment(triplet[1], triplet[2]).direction())
                 .orthogonal()
-                .normalize()
+                .normalize())
         });
 
-        let shift_directions = Some(self.first_segment().direction().orthogonal())
+        let first_vector: ShiftVector = ShiftVector(self.first_segment().direction().orthogonal());
+        let last_vector: ShiftVector = ShiftVector(self.last_segment().direction().orthogonal());
+
+        Some(first_vector)
             .into_iter()
             .chain(angle_bisectors)
-            .chain(Some(self.last_segment().direction().orthogonal()));
+            .chain(Some(last_vector))
+    }
 
-        // TODO: THIS IS WRONG!! THE SHIFT DISTANCE DEPENDS ON ANGLE!!!
-
+    pub fn shift_orthogonally(&self, shift_to_right: N) -> Option<Self> {
         let new_points = self
             .points
             .iter()
-            .zip(shift_directions)
-            .map(|(point, shift_direction)| point + shift_to_right * shift_direction)
+            .zip(self.shift_orthogonally_vectors())
+            .map(|(point, shift_vector)| point + shift_to_right * shift_vector.0)
             .collect();
 
         LinePath::new(new_points)
