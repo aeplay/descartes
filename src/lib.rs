@@ -54,6 +54,7 @@ mod curved_path;
 mod intersect;
 mod areas;
 mod band;
+pub mod util;
 
 pub use self::rough_eq::*;
 pub use self::angles::*;
