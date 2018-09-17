@@ -46,6 +46,18 @@ impl ClosedLinePath {
         }
     }
 
+    pub fn to_clockwise(self) -> Self {
+        let sum: f32 = self.path().segments().map(|segment|
+            (segment.end().x - segment.start().x) * (segment.end().y + segment.start().y)
+        ).sum();
+
+        if sum > 0.0 {
+            self
+        } else {
+            Self::new(self.path().reverse()).expect("Reversing a closed line path should always work")
+        }
+    }
+
     pub fn midpoint_between(&self, start: N, end: N) -> P2 {
         if start > end + THICKNESS {
             let length = self.path().length();

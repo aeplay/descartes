@@ -1,6 +1,6 @@
 [package]
 name = "descartes"
-version = "0.1.9"
+version = "0.1.10"
 description = "Imprecision-tolerant computational geometry for Rust"
 authors = ["Anselm Eickhoff <anselm.eickhoff@gmail.com>"]
 repository = "https://github.com/aeickhoff/descartes"
