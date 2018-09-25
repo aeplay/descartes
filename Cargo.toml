@@ -1,6 +1,6 @@
 [package]
 name = "descartes"
-version = "0.1.10"
+version = "0.1.11"
 description = "Imprecision-tolerant computational geometry for Rust"
 authors = ["Anselm Eickhoff <anselm.eickhoff@gmail.com>"]
 repository = "https://github.com/aeickhoff/descartes"
@@ -15,7 +15,7 @@ serde = {version = "1", optional = true}
 serde_derive = {version = "1", optional = true}
 
 [dependencies.compact]
-version = "0.2.0"
+version = "0.2.8"
 optional = true
 
 [dependencies.compact_macros]
