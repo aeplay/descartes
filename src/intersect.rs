@@ -12,7 +12,7 @@ pub trait Intersect {
     fn intersect(&self) -> Vec<Intersection>;
 }
 
-use line_path::LineSegment;
+use segments::{Segment, LineSegment};
 use bbox::HasBoundingBox;
 
 impl Intersect for (LineSegment, LineSegment) {
@@ -152,8 +152,8 @@ fn line_segments_apart() {
 
     assert_eq!(
         (
-            LineSegment(P2::new(0.0, 0.0), P2::new(1.0, 0.0)),
-            LineSegment(P2::new(0.0, 1.0), P2::new(1.0, 1.0)),
+            LineSegment::new(P2::new(0.0, 0.0), P2::new(1.0, 0.0)),
+            LineSegment::new(P2::new(0.0, 1.0), P2::new(1.0, 1.0)),
         ).intersect(),
         vec![]
     );
@@ -163,8 +163,8 @@ fn line_segments_apart() {
 
     assert_eq!(
         (
-            LineSegment(P2::new(0.0, 0.0), P2::new(1.0, 0.0)),
-            LineSegment(P2::new(0.0, 1.0), P2::new(2.0, 0.0)),
+            LineSegment::new(P2::new(0.0, 0.0), P2::new(1.0, 0.0)),
+            LineSegment::new(P2::new(0.0, 1.0), P2::new(2.0, 0.0)),
         ).intersect(),
         vec![]
     );
@@ -173,8 +173,8 @@ fn line_segments_apart() {
 
     assert_eq!(
         (
-            LineSegment(P2::new(0.0, 0.0), P2::new(1.0, 0.0)),
-            LineSegment(P2::new(2.0, 0.0), P2::new(3.0, 0.0)),
+            LineSegment::new(P2::new(0.0, 0.0), P2::new(1.0, 0.0)),
+            LineSegment::new(P2::new(2.0, 0.0), P2::new(3.0, 0.0)),
         ).intersect(),
         vec![]
     );
@@ -190,8 +190,8 @@ fn line_segments_intersecting() {
 
     assert_eq!(
         (
-            LineSegment(P2::new(0.0, 0.0), P2::new(1.0, 0.0)),
-            LineSegment(P2::new(0.0, 1.0), P2::new(1.0, -1.0)),
+            LineSegment::new(P2::new(0.0, 0.0), P2::new(1.0, 0.0)),
+            LineSegment::new(P2::new(0.0, 1.0), P2::new(1.0, -1.0)),
         ).intersect(),
         vec![Intersection {
             along_a: 0.5,
@@ -206,8 +206,8 @@ fn line_segments_intersecting() {
 
     assert_eq!(
         (
-            LineSegment(P2::new(0.0, 0.0), P2::new(1.0, 0.0)),
-            LineSegment(P2::new(0.0, 1.0), P2::new(0.0, -1.0)),
+            LineSegment::new(P2::new(0.0, 0.0), P2::new(1.0, 0.0)),
+            LineSegment::new(P2::new(0.0, 1.0), P2::new(0.0, -1.0)),
         ).intersect(),
         vec![Intersection {
             along_a: 0.0,
@@ -225,8 +225,8 @@ fn line_segments_barely_intersecting() {
 
     assert_eq!(
         (
-            LineSegment(P2::new(0.0, 0.0), P2::new(1.0, 0.0)),
-            LineSegment(P2::new(-TINY_BIT, 1.0), P2::new(-TINY_BIT, -1.0)),
+            LineSegment::new(P2::new(0.0, 0.0), P2::new(1.0, 0.0)),
+            LineSegment::new(P2::new(-TINY_BIT, 1.0), P2::new(-TINY_BIT, -1.0)),
         ).intersect(),
         vec![Intersection {
             along_a: 0.0,
@@ -237,7 +237,7 @@ fn line_segments_barely_intersecting() {
 }
 
 #[cfg(test)]
-use curved_path::CurvedPath;
+use arc_line_path::ArcLinePath;
 
 impl<'a, 'b> Intersect for (&'a ClosedLinePath, &'b ClosedLinePath) {
     fn intersect(&self) -> Vec<Intersection> {
@@ -254,10 +254,10 @@ fn path_intersecting_at_curved_segment_start() {
     //     |  \
     assert_eq!(
         (
-            &CurvedPath::line(P2::new(0.0, 0.0), P2::new(1.0, 0.0))
+            &ArcLinePath::line(P2::new(0.0, 0.0), P2::new(1.0, 0.0))
                 .unwrap()
                 .concat(
-                    &CurvedPath::arc(P2::new(1.0, 0.0), V2::new(1.0, 0.0), P2::new(2.0, 1.0),)
+                    &ArcLinePath::arc(P2::new(1.0, 0.0), V2::new(1.0, 0.0), P2::new(2.0, 1.0),)
                         .unwrap()
                 )
                 .unwrap()
@@ -280,10 +280,10 @@ fn path_intersecting_close_before_curved_segment_start() {
     //     |  \
     assert_eq!(
         (
-            &CurvedPath::line(P2::new(0.0, 0.0), P2::new(1.0, 0.0))
+            &ArcLinePath::line(P2::new(0.0, 0.0), P2::new(1.0, 0.0))
                 .unwrap()
                 .concat(
-                    &CurvedPath::arc(P2::new(1.0, 0.0), V2::new(1.0, 0.0), P2::new(2.0, 1.0),)
+                    &ArcLinePath::arc(P2::new(1.0, 0.0), V2::new(1.0, 0.0), P2::new(2.0, 1.0),)
                         .unwrap()
                 )
                 .unwrap()
@@ -309,10 +309,10 @@ fn path_intersecting_close_after_curved_segment_start() {
     //     |  \
     assert_eq!(
         (
-            &CurvedPath::line(P2::new(0.0, 0.0), P2::new(1.0, 0.0))
+            &ArcLinePath::line(P2::new(0.0, 0.0), P2::new(1.0, 0.0))
                 .unwrap()
                 .concat(
-                    &CurvedPath::arc(P2::new(1.0, 0.0), V2::new(1.0, 0.0), P2::new(2.0, 1.0),)
+                    &ArcLinePath::arc(P2::new(1.0, 0.0), V2::new(1.0, 0.0), P2::new(2.0, 1.0),)
                         .unwrap()
                 )
                 .unwrap()

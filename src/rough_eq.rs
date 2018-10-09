@@ -28,3 +28,24 @@ impl RoughEq for V2 {
         (*self - other).norm() <= tolerance
     }
 }
+
+#[macro_export]
+macro_rules! assert_rough_eq_by {
+    ($left:expr , $right:expr, $tol:expr,) => ({
+        assert_eq!($left, $right, $tol)
+    });
+    ($left:expr , $right:expr, $tol:expr) => ({
+        match (&($left), &($right)) {
+            (left_val, right_val) => {
+                if !((*left_val).rough_eq_by(*right_val, $tol)) {
+                    panic!("assertion failed: `(left ~= right by {})`\
+                          \n\
+                          \n{}\
+                          \n",
+                          $tol,
+                          ::pretty_assertions::Comparison::new(left_val, right_val))
+                }
+            }
+        }
+    });
+}

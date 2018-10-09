@@ -2,84 +2,7 @@ use {N, P2, V2, VecLike};
 use rough_eq::{RoughEq, THICKNESS};
 use angles::WithUniqueOrthogonal;
 use ordered_float::OrderedFloat;
-
-#[derive(Copy, Clone, Debug)]
-pub struct LineSegment(pub P2, pub P2);
-
-impl LineSegment {
-    pub fn start(&self) -> P2 {
-        self.0
-    }
-
-    pub fn end(&self) -> P2 {
-        self.1
-    }
-
-    pub fn length(&self) -> N {
-        (self.end() - self.start()).norm()
-    }
-
-    pub fn direction(&self) -> V2 {
-        (self.end() - self.start()).normalize()
-    }
-
-    pub fn along(&self, distance: N) -> P2 {
-        self.start() + distance * self.direction()
-    }
-
-    pub fn midpoint(&self) -> P2 {
-        P2::from_coordinates((self.start().coords + self.end().coords) / 2.0)
-    }
-
-    pub fn project_with_tolerance(&self, point: P2, tolerance: N) -> Option<(N, P2)> {
-        if (point - self.start()).norm() < tolerance {
-            Some((0.0, self.start()))
-        } else if (point - self.end()).norm() < tolerance {
-            Some((self.length(), self.end()))
-        } else {
-            let direction = self.direction();
-            let line_offset = direction.dot(&(point - self.start()));
-            if line_offset >= 0.0 && line_offset <= self.length() {
-                Some((line_offset, self.start() + line_offset * direction))
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn project_with_max_distance(
-        &self,
-        point: P2,
-        tolerance: N,
-        max_distance: N,
-    ) -> Option<(N, P2)> {
-        self.project_with_tolerance(point, tolerance)
-            .and_then(|(along, projected_point)| {
-                if (projected_point - point).norm() <= max_distance {
-                    Some((along, projected_point))
-                } else {
-                    None
-                }
-            })
-    }
-}
-
-use bbox::{HasBoundingBox, BoundingBox};
-
-impl HasBoundingBox for LineSegment {
-    fn bounding_box(&self) -> BoundingBox {
-        BoundingBox {
-            min: P2::new(
-                self.start().x.min(self.end().x) - THICKNESS,
-                self.start().y.min(self.end().y) - THICKNESS,
-            ),
-            max: P2::new(
-                self.start().x.max(self.end().x) + THICKNESS,
-                self.start().y.max(self.end().y) + THICKNESS,
-            ),
-        }
-    }
-}
+use segments::LineSegment;
 
 #[cfg_attr(feature = "compact_containers", derive(Compact))]
 #[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
@@ -202,7 +125,7 @@ impl LinePath {
     pub fn segments<'a>(&'a self) -> impl Iterator<Item = LineSegment> + 'a {
         self.points
             .windows(2)
-            .map(|window| LineSegment(window[0], window[1]))
+            .map(|window| LineSegment::new(window[0], window[1]))
     }
 
     pub fn segments_with_distances(&self) -> impl Iterator<Item = (LineSegment, &[N])> {
@@ -210,12 +133,12 @@ impl LinePath {
     }
 
     pub fn first_segment(&self) -> LineSegment {
-        LineSegment(self.points[0], self.points[1])
+        LineSegment::new(self.points[0], self.points[1])
     }
 
     pub fn last_segment(&self) -> LineSegment {
         let last = self.points.len() - 1;
-        LineSegment(self.points[last - 1], self.points[last])
+        LineSegment::new(self.points[last - 1], self.points[last])
     }
 
     pub fn find_on_segment(&self, distance: N) -> Option<(LineSegment, N)> {
@@ -304,7 +227,10 @@ impl LinePath {
 }
 
 #[derive(Debug)]
-pub struct ConcatError;
+pub enum ConcatError {
+    PointsTooFarApart,
+    CreatedInvalidSegment
+}
 
 // TODO: this is a super hacky newtype to avoid weird problems with impl Iterator<Item = V2>
 pub struct ShiftVector(pub V2);
@@ -323,9 +249,9 @@ impl LinePath {
                     .chain(other.points.iter())
                     .cloned()
                     .collect(),
-            ).ok_or(ConcatError)
+            ).ok_or(ConcatError::CreatedInvalidSegment)
         } else {
-            Err(ConcatError)
+            Err(ConcatError::PointsTooFarApart)
         }
     }
 
@@ -365,14 +291,14 @@ impl LinePath {
     pub fn shift_orthogonally_vectors<'a>(&'a self) -> impl Iterator<Item = ShiftVector> + 'a {
         // TODO: THIS IS WRONG!! THE SHIFT DISTANCE DEPENDS ON ANGLE!!!
         let angle_bisectors = self.points.windows(3).map(|triplet| -> ShiftVector {
-            ShiftVector((LineSegment(triplet[0], triplet[1]).direction()
-                + LineSegment(triplet[1], triplet[2]).direction())
-                .orthogonal()
+            ShiftVector((LineSegment::new(triplet[0], triplet[1]).direction()
+                + LineSegment::new(triplet[1], triplet[2]).direction())
+                .orthogonal_right()
                 .normalize())
         });
 
-        let first_vector: ShiftVector = ShiftVector(self.first_segment().direction().orthogonal());
-        let last_vector: ShiftVector = ShiftVector(self.last_segment().direction().orthogonal());
+        let first_vector: ShiftVector = ShiftVector(self.first_segment().direction().orthogonal_right());
+        let last_vector: ShiftVector = ShiftVector(self.last_segment().direction().orthogonal_right());
 
         Some(first_vector)
             .into_iter()

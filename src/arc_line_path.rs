@@ -1,107 +1,80 @@
-use {N, P2, V2, VecLike, signed_angle_to, Rotation2};
-use line_path::{LinePath, ConcatError, LineSegment};
 use intersect::{Intersect, Intersection};
+use itertools::Itertools;
+use line_path::{ConcatError, LinePath};
 use rough_eq::{RoughEq, THICKNESS};
-use angles::WithUniqueOrthogonal;
+use segments::{
+    ArcOrLineSegment, ArcSegment, LineSegment, Segment, MIN_ARC_LENGTH, MIN_LINE_LENGTH,
+};
+use {P2, V2, VecLike, N};
 
+#[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug)]
-pub enum CurvedSegment {
-    Line(P2, P2),
-    Arc(P2, P2, P2),
+pub enum ArcLinePoint {
+    Point(P2),
+    Apex(P2),
 }
 
-impl CurvedSegment {
-    pub fn start(&self) -> P2 {
-        match *self {
-            CurvedSegment::Line(start, _) | CurvedSegment::Arc(start, ..) => start,
+impl ArcLinePoint {
+    pub fn expect_point(&self) -> Option<P2> {
+        if let &Point(p) = self {
+            Some(p)
+        } else {
+            None
         }
     }
 
-    pub fn end(&self) -> P2 {
-        match *self {
-            CurvedSegment::Line(_, end) | CurvedSegment::Arc(_, _, end) => end,
-        }
-    }
-
-    pub fn start_direction(&self) -> V2 {
-        match self {
-            CurvedSegment::Line(start, end) => (end - start).normalize(),
-            CurvedSegment::Arc(start, center, end) => {
-                let center_to_start_orth = (start - center).orthogonal();
-                center_to_start_orth * if center_to_start_orth.dot(&(end - start)) > 0.0 {
-                    1.0
-                } else {
-                    -1.0
-                }
-            }
-        }
-    }
-
-    pub fn end_direction(&self) -> V2 {
-        match self {
-            CurvedSegment::Line(start, end) => (end - start).normalize(),
-            CurvedSegment::Arc(start, center, end) => {
-                let center_to_end_orth = (end - center).orthogonal();
-                center_to_end_orth * if center_to_end_orth.dot(&(end - start)) > 0.0 {
-                    1.0
-                } else {
-                    -1.0
-                }
-            }
-        }
-    }
-
-    pub fn length(&self) -> N {
-        match self {
-            CurvedSegment::Line(start, end) => (start - end).norm(),
-            CurvedSegment::Arc(start, center, end) => {
-                let angle_span = signed_angle_to(end - center, start - center).abs();
-                let radius = (start - center).norm();
-                radius * angle_span
-            }
+    pub fn expect_apex(&self) -> Option<P2> {
+        if let &Apex(a) = self {
+            Some(a)
+        } else {
+            None
         }
     }
 }
+
+use self::ArcLinePoint::{Apex, Point};
 
 #[cfg_attr(feature = "compact_containers", derive(Compact))]
 #[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
-#[derive(Clone)]
-pub struct CurvedPath {
-    points: VecLike<P2>,
-    is_point_center: VecLike<bool>,
+#[derive(Clone, Debug)]
+pub struct ArcLinePath {
+    points: VecLike<ArcLinePoint>,
 }
 
 const ARC_DIRECTION_TOLERANCE: N = 0.0001;
 const CURVE_LINEARIZATION_MAX_ANGLE: N = 0.1;
 
 /// Creation
-impl CurvedPath {
+impl ArcLinePath {
     pub fn line(start: P2, end: P2) -> Option<Self> {
-        if (end - start).norm() <= THICKNESS {
+        if (end - start).norm() <= MIN_LINE_LENGTH {
             None
         } else {
-            Some(CurvedPath {
-                points: vec![start, end].into(),
-                is_point_center: vec![false, false].into(),
+            Some(ArcLinePath {
+                points: vec![Point(start), Point(end)].into(),
             })
         }
     }
 
     pub fn arc(start: P2, start_direction: V2, end: P2) -> Option<Self> {
-        if (end - start).norm() <= THICKNESS {
+        if (end - start).norm() <= MIN_ARC_LENGTH {
             None
         } else if start_direction.rough_eq_by((end - start).normalize(), ARC_DIRECTION_TOLERANCE) {
             Self::line(start, end)
         } else {
-            let signed_radius = {
-                let half_chord = (end - start) / 2.0;
-                half_chord.norm_squared() / start_direction.orthogonal().dot(&half_chord)
-            };
-            let center = start + signed_radius * start_direction.orthogonal();
-            Some(CurvedPath {
-                points: vec![start, center, end].into(),
-                is_point_center: vec![false, true, false].into(),
-            })
+            if let Some(segment) =
+                ArcSegment::minor_arc_with_start_direction(start, start_direction, end)
+            {
+                Some(ArcLinePath {
+                    points: vec![
+                        Point(segment.start()),
+                        Apex(segment.apex()),
+                        Point(segment.end()),
+                    ].into(),
+                })
+            } else {
+                Self::line(start, end)
+            }
         }
     }
 
@@ -121,8 +94,8 @@ impl CurvedPath {
             {
                 Some(single_arc)
             } else {
-                let start_ray = LineSegment(start, start + RAY_LENGTH * start_direction);
-                let end_ray = LineSegment(end, end - RAY_LENGTH * end_direction);
+                let start_ray = LineSegment::new(start, start + RAY_LENGTH * start_direction);
+                let end_ray = LineSegment::new(end, end - RAY_LENGTH * end_direction);
                 let maybe_linear_intersection = (start_ray, end_ray).intersect().into_iter().find(
                     |intersection| {
                         intersection.along_a < 0.8 * RAY_LENGTH
@@ -223,13 +196,18 @@ impl CurvedPath {
 }
 
 /// Inspection
-impl CurvedPath {
+impl ArcLinePath {
     pub fn start(&self) -> P2 {
         self.points[0]
+            .expect_point()
+            .expect("ArcLinePath start should be a Point")
     }
 
     pub fn end(&self) -> P2 {
-        *self.points.last().unwrap()
+        self.points
+            .last()
+            .and_then(ArcLinePoint::expect_point)
+            .expect("ArcLinePath end should exist and be a Point")
     }
 
     pub fn length(&self) -> N {
@@ -244,85 +222,96 @@ impl CurvedPath {
         self.segments().last().unwrap().end_direction()
     }
 
-    pub fn segments<'a>(&'a self) -> impl Iterator<Item = CurvedSegment> + 'a {
-        self.points
-            .iter()
-            .zip(self.is_point_center.iter())
-            .scan((None, None), |state, (&point, is_center)| {
-                let (new_state, maybe_segment) = match *state {
-                    (None, None) => ((Some(point), None), Some(None)),
-                    (Some(prev_point), None) => if *is_center {
-                        ((Some(prev_point), Some(point)), Some(None))
+    pub fn segments<'a>(&'a self) -> impl Iterator<Item = ArcOrLineSegment> + 'a {
+        let mut points_iter = self.points.iter();
+        let mut start = points_iter
+            .next()
+            .and_then(ArcLinePoint::expect_point)
+            .expect("ArcLinePath should have and start with a Point");
+
+        points_iter.batching(move |iter| match iter.next() {
+            Some(&Point(end)) => {
+                let segment = ArcOrLineSegment::line_unchecked(start, end);
+                start = end;
+                Some(segment)
+            }
+            Some(&Apex(apex)) => {
+                if let Some(&Point(end)) = iter.next() {
+                    //let segment = ArcOrLineSegment::arc_unchecked(start, apex, end);
+                    if let Some(segment) = ArcSegment::new(start, apex, end) {
+                        start = end;
+                        Some(ArcOrLineSegment::Arc(segment))
                     } else {
-                        (
-                            (Some(point), None),
-                            Some(Some(CurvedSegment::Line(prev_point, point))),
+                        panic!(
+                            "Invalid segment in path: {:?}, seg: {:?} {:?} {:?}",
+                            self, start, apex, end
                         )
-                    },
-                    (Some(prev_point), Some(center)) => (
-                        (Some(point), None),
-                        Some(Some(CurvedSegment::Arc(prev_point, center, point))),
-                    ),
-                    (None, Some(_)) => unreachable!(),
-                };
-                *state = new_state;
-                maybe_segment
-            })
-            .filter_map(|maybe_segment| maybe_segment)
+                    }
+                } else {
+                    unreachable!("After an Apex there should be at least one more Point")
+                }
+            }
+            None => None,
+        })
     }
 }
 
 /// Combination/Modification
-impl CurvedPath {
+impl ArcLinePath {
     pub fn concat(&self, other: &Self) -> Result<Self, ConcatError> {
         if self.end().rough_eq(other.start()) {
-            Ok(CurvedPath {
+            let old_len = self.points.len();
+            let other_len = other.points.len();
+            let concat_path = ArcLinePath {
                 points: self
                     .points
                     .iter()
                     .chain(other.points[1..].iter())
                     .cloned()
                     .collect(),
-                is_point_center: self
-                    .is_point_center
-                    .iter()
-                    .chain(other.is_point_center[1..].iter())
-                    .cloned()
-                    .collect(),
-            })
+            };
+            // if there was an arc at either side of the transition, make sure it's still valid
+            if other_len >= 3 {
+                if let (Point(start), Apex(apex), Point(end)) = (
+                    concat_path.points[old_len - 1],
+                    concat_path.points[old_len],
+                    concat_path.points[old_len + 1],
+                ) {
+                    if ArcSegment::new(start, apex, end).is_none() {
+                        return Err(ConcatError::CreatedInvalidSegment);
+                    }
+                }
+            }
+
+            Ok(concat_path)
         } else {
-            Err(ConcatError)
+            Err(ConcatError::PointsTooFarApart)
+        }
+    }
+
+    pub fn reverse(&self) -> Self {
+        let mut new_points = self.points.clone();
+        new_points.reverse();
+        ArcLinePath {
+            points: new_points
         }
     }
 
     pub fn to_line_path_with_max_angle(&self, max_angle: N) -> LinePath {
-        let points = self
+        let points: VecLike<P2> = self
             .segments()
-            .flat_map(|segment| match segment {
-                CurvedSegment::Line(start, _end) => vec![start],
-                CurvedSegment::Arc(start, center, end) => {
-                    let signed_angle_span = signed_angle_to(start - center, end - center);
-
-                    let subdivisions =
-                        (signed_angle_span.abs() / max_angle).max(1.0).floor() as usize;
-                    let subdivision_angle = signed_angle_span / (subdivisions as f32);
-
-                    let mut pointer = start - center;
-
-                    (0..subdivisions)
-                        .into_iter()
-                        .map(|_| {
-                            let point = center + pointer;
-                            pointer = Rotation2::new(subdivision_angle) * pointer;
-                            point
-                        })
-                        .collect::<Vec<_>>()
-                }
-            })
+            .flat_map(|segment| segment.subdivisions_without_end(max_angle))
             .chain(Some(self.end()))
             .collect();
 
-        LinePath::new(points).expect("A valid CurvedPath should always produce a valid LinePath")
+        if let Some(path) = LinePath::new(points.clone()) {
+            path
+        } else {
+            panic!(
+                "A valid ArcLinePath should always produce a valid LinePath: {:?}, points: {:?}",
+                self, points
+            )
+        }
     }
 
     pub fn to_line_path(&self) -> LinePath {
@@ -332,24 +321,24 @@ impl CurvedPath {
 
 #[test]
 fn to_line_path() {
-    use ::{PI};
-    let curved_path = CurvedPath::line(P2::new(0.0, 0.0), P2::new(1.0, 0.0))
+    use PI;
+    let curved_path = ArcLinePath::line(P2::new(0.0, 0.0), P2::new(1.0, 0.0))
         .expect("first line should work")
         .concat(
-            &CurvedPath::arc(P2::new(1.0, 0.0), V2::new(1.0, 0.0), P2::new(2.0, 1.0))
+            &ArcLinePath::arc(P2::new(1.0, 0.0), V2::new(1.0, 0.0), P2::new(2.0, 1.0))
                 .expect("arc should work"),
         )
         .expect("line>arc concat should work")
         .concat(
-            &CurvedPath::line(P2::new(2.0, 1.0), P2::new(2.0, 2.0))
+            &ArcLinePath::line(P2::new(2.0, 1.0), P2::new(2.0, 2.0))
                 .expect("second line should work"),
         )
         .expect("line-arc>line concat should work");
 
     println!("{:#?}", curved_path.segments().collect::<Vec<_>>());
 
-    assert_eq!(
-        LinePath::new(vec![
+    assert_rough_eq_by!(
+        &LinePath::new(vec![
             P2::new(0.0, 0.0),
             P2::new(1.0, 0.0),
             P2::new(1.5, 0.13397461),
@@ -357,6 +346,7 @@ fn to_line_path() {
             P2::new(2.0, 1.0),
             P2::new(2.0, 2.0),
         ]).unwrap(),
-        curved_path.to_line_path_with_max_angle(PI / 6.0)
+        &curved_path.to_line_path_with_max_angle(PI / 6.0),
+        0.0001
     );
 }

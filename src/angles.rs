@@ -30,13 +30,18 @@ pub fn signed_angle_to(a: V2, b: V2) -> N {
 //  DESCARTES ASSUMES
 //  A RIGHT HAND COORDINATE SYSTEM
 //
+//  positive angles are counter-clockwise if z axis points out of screen  
+//
 
-pub trait WithUniqueOrthogonal {
-    fn orthogonal(&self) -> Self;
+pub trait WithUniqueOrthogonal: ::std::ops::Neg<Output=Self> + Sized {
+    fn orthogonal_right(&self) -> Self;
+    fn orthogonal_left(&self) -> Self {
+        -self.orthogonal_right()
+    }
 }
 
 impl WithUniqueOrthogonal for V2 {
-    fn orthogonal(&self) -> V2 {
+    fn orthogonal_right(&self) -> V2 {
         V2::new(self.y, -self.x)
     }
 }

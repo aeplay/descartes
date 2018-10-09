@@ -1,4 +1,5 @@
 use {N, P2};
+use segments::Segment;
 use line_path::LinePath;
 use rough_eq::{RoughEq, THICKNESS};
 

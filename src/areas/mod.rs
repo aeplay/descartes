@@ -1,9 +1,10 @@
-use {P2, N, THICKNESS, RoughEq, VecLike, PI, signed_angle_to};
-use line_path::{LinePath, LineSegment};
-use closed_line_path::{ClosedLinePath};
-use intersect::{Intersect};
+use closed_line_path::ClosedLinePath;
+use intersect::Intersect;
+use line_path::LinePath;
 use ordered_float::OrderedFloat;
+use segments::Segment;
 use util::join_within_vec;
+use {P2, RoughEq, VecLike, N, PI, THICKNESS};
 
 mod debug;
 
@@ -27,12 +28,6 @@ pub trait PointContainer {
 
     fn contains(&self, point: P2) -> bool {
         self.location_of(point) != AreaLocation::Outside
-    }
-}
-
-impl LineSegment {
-    fn winding_angle(&self, point: P2) -> N {
-        signed_angle_to(self.start() - point, self.end() - point)
     }
 }
 
@@ -266,14 +261,19 @@ fn other_subject(subject: usize) -> usize {
 
 impl Area {
     pub fn split<'a>(&'a self, b: &'a Self) -> AreaSplitResult<'a> {
-        self.split_helper(b, false).expect("should always return Some(_) with return_on_no_intersection = false")
+        self.split_helper(b, false)
+            .expect("should always return Some(_) with return_on_no_intersection = false")
     }
 
     pub fn split_if_intersects<'a>(&'a self, b: &'a Self) -> Option<AreaSplitResult<'a>> {
         self.split_helper(b, true)
     }
 
-    fn split_helper<'a>(&'a self, b: &'a Self, return_on_no_intersection: bool) -> Option<AreaSplitResult<'a>> {
+    fn split_helper<'a>(
+        &'a self,
+        b: &'a Self,
+        return_on_no_intersection: bool,
+    ) -> Option<AreaSplitResult<'a>> {
         let ab = [self, b];
 
         let mut intersection_distances_points = [
