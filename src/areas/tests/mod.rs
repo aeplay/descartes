@@ -1,6 +1,4 @@
-use super::{N, P2, LinePath, ClosedLinePath, Area, PrimitiveArea,
-THICKNESS, VecLike};
-use arc_line_path::ArcLinePath;
+use super::{LinePath, ClosedLinePath, Area, PrimitiveArea, VecLike};
 
 fn svg_test(file_path: &str) {
     use std::fs;
@@ -104,120 +102,120 @@ fn clip_3_difference() {
     svg_test("./src/areas/tests/3_difference.svg");
 }
 
-#[test]
-fn area_intersecting_at_curved_road() {
-    use V2;
-    //     _
-    //    | |
-    // ,--|-|--.
-    // '--|-|.  \
-    //    |_| `--'
+// #[test]
+// fn area_intersecting_at_curved_road() {
+//     use V2;
+//     //     _
+//     //    | |
+//     // ,--|-|--.
+//     // '--|-|.  \
+//     //    |_| `--'
 
-    assert_eq!(
-        Area::new_simple(
-            ClosedLinePath::new(
-                ArcLinePath::line(P2::new(0.0, 0.0), P2::new(2.0, 0.0))
-                    .unwrap()
-                    .concat(
-                        &ArcLinePath::arc(P2::new(2.0, 0.0), V2::new(1.0, 0.0), P2::new(3.0, 1.0),)
-                            .unwrap()
-                    )
-                    .unwrap()
-                    .concat(&ArcLinePath::line(P2::new(3.0, 1.0), P2::new(2.5, 1.0)).unwrap())
-                    .unwrap()
-                    .concat(
-                        &ArcLinePath::arc(P2::new(2.5, 1.0), V2::new(0.0, -1.0), P2::new(2.0, 0.5),)
-                            .unwrap()
-                    )
-                    .unwrap()
-                    .concat(&ArcLinePath::line(P2::new(2.0, 0.5), P2::new(0.0, 0.5)).unwrap())
-                    .unwrap()
-                    .concat(&ArcLinePath::line(P2::new(0.0, 0.5), P2::new(0.0, 0.0)).unwrap())
-                    .unwrap()
-                    .to_line_path()
-            ).unwrap(),
-        ).split(&Area::new_simple(
-            ClosedLinePath::new(
-                LinePath::new(vec![
-                    P2::new(1.0, 1.0),
-                    P2::new(1.0, -1.0),
-                    P2::new(2.0, -1.0),
-                    P2::new(2.0, 1.0),
-                    P2::new(1.0, 1.0),
-                ]).unwrap(),
-            ).unwrap(),
-        ))
-            .intersection()
-            .expect("Intersection should work")
-            .primitives[0]
-            .boundary
-            .path(),
-        &LinePath::new(vec![
-            P2::new(2.0, 0.5),
-            P2::new(1.0, 0.5),
-            P2::new(1.0, 0.0),
-            P2::new(2.0, 0.0),
-            P2::new(2.0, 0.5),
-        ]).unwrap()
-    );
-}
+//     assert_eq!(
+//         Area::new_simple(
+//             ClosedLinePath::new(
+//                 ArcLinePath::line(P2::new(0.0, 0.0), P2::new(2.0, 0.0))
+//                     .unwrap()
+//                     .concat(
+//                         &ArcLinePath::arc(P2::new(2.0, 0.0), V2::new(1.0, 0.0), P2::new(3.0, 1.0),)
+//                             .unwrap()
+//                     )
+//                     .unwrap()
+//                     .concat(&ArcLinePath::line(P2::new(3.0, 1.0), P2::new(2.5, 1.0)).unwrap())
+//                     .unwrap()
+//                     .concat(
+//                         &ArcLinePath::arc(P2::new(2.5, 1.0), V2::new(0.0, -1.0), P2::new(2.0, 0.5),)
+//                             .unwrap()
+//                     )
+//                     .unwrap()
+//                     .concat(&ArcLinePath::line(P2::new(2.0, 0.5), P2::new(0.0, 0.5)).unwrap())
+//                     .unwrap()
+//                     .concat(&ArcLinePath::line(P2::new(0.0, 0.5), P2::new(0.0, 0.0)).unwrap())
+//                     .unwrap()
+//                     .to_line_path()
+//             ).unwrap(),
+//         ).split(&Area::new_simple(
+//             ClosedLinePath::new(
+//                 LinePath::new(vec![
+//                     P2::new(1.0, 1.0),
+//                     P2::new(1.0, -1.0),
+//                     P2::new(2.0, -1.0),
+//                     P2::new(2.0, 1.0),
+//                     P2::new(1.0, 1.0),
+//                 ]).unwrap(),
+//             ).unwrap(),
+//         ))
+//             .intersection()
+//             .expect("Intersection should work")
+//             .primitives[0]
+//             .boundary
+//             .path(),
+//         &LinePath::new(vec![
+//             P2::new(2.0, 0.5),
+//             P2::new(1.0, 0.5),
+//             P2::new(1.0, 0.0),
+//             P2::new(2.0, 0.0),
+//             P2::new(2.0, 0.5),
+//         ]).unwrap()
+//     );
+// }
 
-const TINY_BIT: N = THICKNESS / 3.0;
+// const TINY_BIT: N = THICKNESS / 3.0;
 
-#[test]
-fn area_intersecting_before_curved_road() {
-    use V2;
-    //     _
-    //    | |
-    // ,--(-(--.
-    // '--(-(.  \
-    //    |_| `--'
+// #[test]
+// fn area_intersecting_before_curved_road() {
+//     use V2;
+//     //     _
+//     //    | |
+//     // ,--(-(--.
+//     // '--(-(.  \
+//     //    |_| `--'
 
-    assert_eq!(
-        Area::new_simple(
-            ClosedLinePath::new(
-                ArcLinePath::line(P2::new(0.0, 0.0), P2::new(2.0, 0.0))
-                    .unwrap()
-                    .concat(
-                        &ArcLinePath::arc(P2::new(2.0, 0.0), V2::new(1.0, 0.0), P2::new(3.0, 1.0),)
-                            .unwrap()
-                    )
-                    .unwrap()
-                    .concat(&ArcLinePath::line(P2::new(3.0, 1.0), P2::new(2.5, 1.0)).unwrap())
-                    .unwrap()
-                    .concat(
-                        &ArcLinePath::arc(P2::new(2.5, 1.0), V2::new(0.0, -1.0), P2::new(2.0, 0.5),)
-                            .unwrap()
-                    )
-                    .unwrap()
-                    .concat(&ArcLinePath::line(P2::new(2.0, 0.5), P2::new(0.0, 0.5)).unwrap())
-                    .unwrap()
-                    .concat(&ArcLinePath::line(P2::new(0.0, 0.5), P2::new(0.0, 0.0)).unwrap())
-                    .unwrap()
-                    .to_line_path()
-            ).unwrap(),
-        ).split(&Area::new_simple(
-            ClosedLinePath::new(
-                LinePath::new(vec![
-                    P2::new(1.0 - TINY_BIT, 1.0),
-                    P2::new(1.0 - TINY_BIT, -1.0),
-                    P2::new(2.0 - TINY_BIT, -1.0),
-                    P2::new(2.0 - TINY_BIT, 1.0),
-                    P2::new(1.0 - TINY_BIT, 1.0),
-                ]).unwrap(),
-            ).unwrap(),
-        ))
-            .intersection()
-            .expect("Intersection should work")
-            .primitives[0]
-            .boundary
-            .path(),
-        &LinePath::new(vec![
-            P2::new(2.0, 0.5),
-            P2::new(1.0, 0.5),
-            P2::new(1.0, 0.0),
-            P2::new(2.0, 0.0),
-            P2::new(2.0, 0.5),
-        ]).unwrap()
-    );
-}
+//     assert_eq!(
+//         Area::new_simple(
+//             ClosedLinePath::new(
+//                 ArcLinePath::line(P2::new(0.0, 0.0), P2::new(2.0, 0.0))
+//                     .unwrap()
+//                     .concat(
+//                         &ArcLinePath::arc(P2::new(2.0, 0.0), V2::new(1.0, 0.0), P2::new(3.0, 1.0),)
+//                             .unwrap()
+//                     )
+//                     .unwrap()
+//                     .concat(&ArcLinePath::line(P2::new(3.0, 1.0), P2::new(2.5, 1.0)).unwrap())
+//                     .unwrap()
+//                     .concat(
+//                         &ArcLinePath::arc(P2::new(2.5, 1.0), V2::new(0.0, -1.0), P2::new(2.0, 0.5),)
+//                             .unwrap()
+//                     )
+//                     .unwrap()
+//                     .concat(&ArcLinePath::line(P2::new(2.0, 0.5), P2::new(0.0, 0.5)).unwrap())
+//                     .unwrap()
+//                     .concat(&ArcLinePath::line(P2::new(0.0, 0.5), P2::new(0.0, 0.0)).unwrap())
+//                     .unwrap()
+//                     .to_line_path()
+//             ).unwrap(),
+//         ).split(&Area::new_simple(
+//             ClosedLinePath::new(
+//                 LinePath::new(vec![
+//                     P2::new(1.0 - TINY_BIT, 1.0),
+//                     P2::new(1.0 - TINY_BIT, -1.0),
+//                     P2::new(2.0 - TINY_BIT, -1.0),
+//                     P2::new(2.0 - TINY_BIT, 1.0),
+//                     P2::new(1.0 - TINY_BIT, 1.0),
+//                 ]).unwrap(),
+//             ).unwrap(),
+//         ))
+//             .intersection()
+//             .expect("Intersection should work")
+//             .primitives[0]
+//             .boundary
+//             .path(),
+//         &LinePath::new(vec![
+//             P2::new(2.0, 0.5),
+//             P2::new(1.0, 0.5),
+//             P2::new(1.0, 0.0),
+//             P2::new(2.0, 0.0),
+//             P2::new(2.0, 0.5),
+//         ]).unwrap()
+//     );
+// }

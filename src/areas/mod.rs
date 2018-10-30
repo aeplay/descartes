@@ -1,3 +1,4 @@
+use bbox::{BoundingBox, HasBoundingBox};
 use closed_line_path::ClosedLinePath;
 use intersect::Intersect;
 use line_path::LinePath;
@@ -90,16 +91,21 @@ impl<'a> RoughEq for &'a PrimitiveArea {
 #[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
 pub struct Area {
     pub primitives: VecLike<PrimitiveArea>,
+    pub cached_bbox: Option<BoundingBox>,
 }
 
 impl Area {
     pub fn new(primitives: VecLike<PrimitiveArea>) -> Self {
-        Area { primitives }
+        Area {
+            primitives,
+            cached_bbox: None
+        }
     }
 
     pub fn new_simple(boundary: ClosedLinePath) -> Self {
         Area {
             primitives: Some(PrimitiveArea::new(boundary)).into_iter().collect(),
+            cached_bbox: None
         }
     }
 
@@ -146,6 +152,33 @@ impl PointContainer for Area {
             AreaLocation::Outside
         } else {
             AreaLocation::Inside
+        }
+    }
+}
+
+impl HasBoundingBox for Area {
+    fn bounding_box(&self) -> BoundingBox {
+        if let Some(cached) = self.cached_bbox {
+            cached
+        } else {
+            let bbox = self
+                .primitives
+                .iter()
+                .flat_map(|primitive_area| {
+                    primitive_area
+                        .boundary
+                        .path()
+                        .segments()
+                        .map(|segment| segment.bounding_box())
+                })
+                .collect();
+            
+            unsafe {
+                // we should use a Cell here, but Compact doesn't support that yet
+                let self_mut: *mut Area = ::std::mem::transmute(self);
+                (&mut *self_mut).cached_bbox = Some(bbox);
+            }
+            bbox
         }
     }
 }
@@ -487,7 +520,7 @@ impl<'a> AreaSplitResult<'a> {
         &self,
         piece_filter: F,
     ) -> Result<Area, AreaError> {
-        let mut paths = self
+        let paths = self
             .pieces
             .iter()
             .filter_map(|piece| match piece_filter(piece) {
@@ -497,6 +530,58 @@ impl<'a> AreaSplitResult<'a> {
             })
             .collect::<Vec<_>>();
 
+        Area::from_pieces(paths)
+    }
+
+    pub fn intersection(&self) -> Result<Area, AreaError> {
+        self.get_area(|piece| {
+            if piece.right_inside[SUBJECT_A] && piece.right_inside[SUBJECT_B] {
+                PieceRole::Forward
+            } else {
+                PieceRole::NonContributing
+            }
+        })
+    }
+
+    pub fn union(&self) -> Result<Area, AreaError> {
+        self.get_area(|piece| {
+            if (piece.right_inside[SUBJECT_A] || piece.right_inside[SUBJECT_B])
+                && !(piece.left_inside[SUBJECT_A] || piece.left_inside[SUBJECT_B])
+            {
+                PieceRole::Forward
+            } else {
+                PieceRole::NonContributing
+            }
+        })
+    }
+
+    pub fn a_minus_b(&self) -> Result<Area, AreaError> {
+        self.get_area(|piece| {
+            if piece.right_inside[SUBJECT_A] && !piece.right_inside[SUBJECT_B] {
+                PieceRole::Forward
+            } else if piece.left_inside[SUBJECT_A] && !piece.left_inside[SUBJECT_B] {
+                PieceRole::Backward
+            } else {
+                PieceRole::NonContributing
+            }
+        })
+    }
+
+    pub fn b_minus_a(&self) -> Result<Area, AreaError> {
+        self.get_area(|piece| {
+            if piece.right_inside[SUBJECT_B] && !piece.right_inside[SUBJECT_A] {
+                PieceRole::Forward
+            } else if piece.left_inside[SUBJECT_B] && !piece.left_inside[SUBJECT_A] {
+                PieceRole::Backward
+            } else {
+                PieceRole::NonContributing
+            }
+        })
+    }
+}
+
+impl Area {
+    pub fn from_pieces(mut paths: Vec<LinePath>) -> Result<Area, AreaError> {
         // println!(
         //     "PATHS \n{:#?}",
         //     paths
@@ -566,7 +651,7 @@ impl<'a> AreaSplitResult<'a> {
             return Err(AreaError::LeftOver(format!(
                 "Start to closest end: {}\n{}\n\n{}",
                 min_distance,
-                self.debug_svg(),
+                "SVG MISSING", //self.debug_svg(),
                 format!(
                     r#"<path d="{}" stroke="rgba(0, 255, 0, 0.8)"/>"#,
                     paths[0].to_svg()
@@ -577,51 +662,5 @@ impl<'a> AreaSplitResult<'a> {
         Ok(Area::new(
             complete_paths.into_iter().map(PrimitiveArea::new).collect(),
         ))
-    }
-
-    pub fn intersection(&self) -> Result<Area, AreaError> {
-        self.get_area(|piece| {
-            if piece.right_inside[SUBJECT_A] && piece.right_inside[SUBJECT_B] {
-                PieceRole::Forward
-            } else {
-                PieceRole::NonContributing
-            }
-        })
-    }
-
-    pub fn union(&self) -> Result<Area, AreaError> {
-        self.get_area(|piece| {
-            if (piece.right_inside[SUBJECT_A] || piece.right_inside[SUBJECT_B])
-                && !(piece.left_inside[SUBJECT_A] || piece.left_inside[SUBJECT_B])
-            {
-                PieceRole::Forward
-            } else {
-                PieceRole::NonContributing
-            }
-        })
-    }
-
-    pub fn a_minus_b(&self) -> Result<Area, AreaError> {
-        self.get_area(|piece| {
-            if piece.right_inside[SUBJECT_A] && !piece.right_inside[SUBJECT_B] {
-                PieceRole::Forward
-            } else if piece.left_inside[SUBJECT_A] && !piece.left_inside[SUBJECT_B] {
-                PieceRole::Backward
-            } else {
-                PieceRole::NonContributing
-            }
-        })
-    }
-
-    pub fn b_minus_a(&self) -> Result<Area, AreaError> {
-        self.get_area(|piece| {
-            if piece.right_inside[SUBJECT_B] && !piece.right_inside[SUBJECT_A] {
-                PieceRole::Forward
-            } else if piece.left_inside[SUBJECT_B] && !piece.left_inside[SUBJECT_A] {
-                PieceRole::Backward
-            } else {
-                PieceRole::NonContributing
-            }
-        })
     }
 }

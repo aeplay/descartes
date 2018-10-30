@@ -1,7 +1,7 @@
-use {N, P2, V2, NEG_INFINITY, INFINITY};
+use {P2, V2, INFINITY, N, NEG_INFINITY};
 
 #[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct BoundingBox {
     pub min: P2,
     pub max: P2,
@@ -31,6 +31,30 @@ impl BoundingBox {
             min: self.min - V2::new(offset, offset),
             max: self.max + V2::new(offset, offset),
         }
+    }
+
+    pub fn contains(&self, point: P2) -> bool {
+        self.min.x <= point.x && self.max.x >= point.x && self.min.y <= point.y && self.max.y >= point.y
+    }
+
+    pub fn extended_by(&self, other: BoundingBox) -> Self {
+        BoundingBox {
+            min: P2::new(self.min.x.min(other.min.x), self.min.y.min(other.min.y)),
+            max: P2::new(self.max.x.max(other.max.x), self.max.y.max(other.max.y)),
+        }
+    }
+}
+
+impl ::std::iter::FromIterator<BoundingBox> for BoundingBox {
+    fn from_iter<T: IntoIterator<Item = BoundingBox>>(collection: T) -> Self {
+        let mut iter = collection.into_iter();
+        let mut bbox = iter.next().expect("Should have at least one bounding box");
+
+        for next_bbox in iter {
+            bbox = bbox.extended_by(next_bbox);
+        }
+
+        bbox
     }
 }
 

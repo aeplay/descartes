@@ -112,6 +112,11 @@ impl LineSegment {
     pub fn is_point_right_of(&self, point: P2) -> bool {
         self.winding_angle(point) < 0.0
     }
+
+    pub fn signed_distance_of(&self, point: P2) -> N {
+        let direction_orth = self.direction().orthogonal_left();
+        (point - self.start).dot(&direction_orth)
+    }
 }
 
 use bbox::{BoundingBox, HasBoundingBox};

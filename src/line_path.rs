@@ -10,7 +10,7 @@ use segments::LineSegment;
 #[derive(Clone, Debug)]
 pub struct LinePath {
     pub points: VecLike<P2>,
-    distances: VecLike<N>,
+    pub distances: VecLike<N>,
 }
 
 /// Creation
@@ -139,6 +139,10 @@ impl LinePath {
     pub fn last_segment(&self) -> LineSegment {
         let last = self.points.len() - 1;
         LineSegment::new(self.points[last - 1], self.points[last])
+    }
+
+    pub fn nth_segment(&self, n: usize) -> LineSegment {
+        LineSegment::new(self.points[n], self.points[n + 1])
     }
 
     pub fn find_on_segment(&self, distance: N) -> Option<(LineSegment, N)> {

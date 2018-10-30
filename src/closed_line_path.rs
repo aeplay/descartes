@@ -6,7 +6,7 @@ use rough_eq::{RoughEq, THICKNESS};
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "compact_containers", derive(Compact))]
 #[cfg_attr(feature = "serde-serialization", derive(Serialize, Deserialize))]
-pub struct ClosedLinePath(LinePath);
+pub struct ClosedLinePath(pub LinePath);
 
 impl ClosedLinePath {
     pub fn new(path: LinePath) -> Option<Self> {

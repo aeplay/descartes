@@ -17,7 +17,7 @@ use bbox::HasBoundingBox;
 
 impl Intersect for (LineSegment, LineSegment) {
     fn intersect(&self) -> Vec<Intersection> {
-        let (a, b) = *self;
+        let (ref a, ref b) = *self;
 
         if !a.bounding_box().overlaps(&b.bounding_box()) {
             return vec![];
@@ -112,28 +112,35 @@ impl Intersect for (LineSegment, LineSegment) {
 }
 
 use line_path::LinePath;
+use segment_grid::{SegmentGrid, PathSegmentIdx};
 
 impl<'a, 'b> Intersect for (&'a LinePath, &'b LinePath) {
     fn intersect(&self) -> Vec<Intersection> {
         let mut intersections = Vec::<Intersection>::new();
         let (a, b) = *self;
 
-        for (segment_a, a_distance_pair) in a.segments_with_distances() {
-            for (segment_b, b_distance_pair) in b.segments_with_distances() {
-                for intersection in (segment_a, segment_b).intersect() {
-                    let close_exists = intersections.iter().any(|existing| {
-                        existing
-                            .position
-                            .rough_eq_by(intersection.position, THICKNESS)
-                    });
+        let mut grid = SegmentGrid::new(a.length().max(b.length()) / 10.0);
 
-                    if !close_exists {
-                        intersections.push(Intersection {
-                            along_a: a_distance_pair[0] + intersection.along_a,
-                            along_b: b_distance_pair[0] + intersection.along_b,
-                            position: intersection.position,
-                        })
-                    }
+        grid.insert(a);
+        let (_, interactions) = grid.insert(b);
+
+        for (segment_idx_b, PathSegmentIdx{segment_idx: segment_idx_a, ..}) in interactions.into_iter() {
+            let (segment_a, a_distance) = (a.nth_segment(segment_idx_a.as_idx()), a.distances[segment_idx_a.as_idx()]);
+            let (segment_b, b_distance) = (b.nth_segment(segment_idx_b.as_idx()), b.distances[segment_idx_b.as_idx()]);
+
+            for intersection in (segment_a, segment_b).intersect() {
+                let close_exists = intersections.iter().any(|existing| {
+                    existing
+                        .position
+                        .rough_eq_by(intersection.position, THICKNESS)
+                });
+
+                if !close_exists {
+                    intersections.push(Intersection {
+                        along_a: a_distance + intersection.along_a,
+                        along_b: b_distance + intersection.along_b,
+                        position: intersection.position,
+                    })
                 }
             }
         }

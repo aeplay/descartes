@@ -5,6 +5,10 @@ extern crate itertools;
 #[cfg(feature = "compact_containers")]
 extern crate compact;
 
+extern crate fnv;
+extern crate stable_vec;
+extern crate smallvec;
+
 #[cfg(feature = "compact_containers")]
 #[macro_use]
 extern crate compact_macros;
@@ -56,6 +60,10 @@ mod arc_line_path;
 mod intersect;
 mod areas;
 mod band;
+mod grid;
+mod segment_grid;
+mod embedding;
+mod area_embedding;
 pub mod util;
 
 pub use self::rough_eq::*;
@@ -69,3 +77,7 @@ pub use self::arc_line_path::*;
 pub use self::intersect::*;
 pub use self::areas::*;
 pub use self::band::*;
+pub use self::grid::*;
+pub use self::segment_grid::*;
+pub use self::embedding::*;
+pub use self::area_embedding::*;
