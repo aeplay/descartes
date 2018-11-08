@@ -182,6 +182,12 @@ impl<L: PartialEq + Eq + Clone + Hash + 'static> AreaFilter<L> {
         }
     }
 
+    pub fn has(label: L) -> Self {
+        AreaFilter::Function(Box::new(move |label_set| {
+            label_set.contains(&label)
+        }))
+    }
+
     pub fn any_of(unioned_labels: Vec<L>) -> Self {
         AreaFilter::Function(Box::new(move |label_set| {
             unioned_labels
