@@ -12,8 +12,6 @@ mod debug;
 #[cfg(test)]
 mod tests;
 
-const EQUIVALENCE_TOLERANCE: N = THICKNESS * 10.0;
-
 #[derive(Debug)]
 pub struct UnclosedPathError;
 
@@ -65,6 +63,14 @@ impl PrimitiveArea {
             .map(|segment| segment.winding_angle(point))
             .sum::<f32>() / (2.0 * PI))
             .round()
+    }
+
+    pub fn area(&self) -> N {
+        // http://mathworld.wolfram.com/PolygonArea.html
+        0.5f32 * self.boundary.path().points.windows(2).map(|pair| {
+            let (p1, p2) = (pair[0], pair[1]);
+            p1.x * p2.y - p2.x * p1.y
+        }).sum::<N>()
     }
 }
 
@@ -138,6 +144,10 @@ impl Area {
             .map(|primitive| primitive.winding_number(point))
             .sum()
     }
+
+    pub fn area(&self) -> N {
+        self.primitives.iter().map(PrimitiveArea::area).sum()
+    }
 }
 
 impl PointContainer for Area {
@@ -195,389 +205,12 @@ impl<'a> RoughEq for &'a Area {
     }
 }
 
-pub struct BoundaryPiece<'a> {
-    on_boundary: &'a ClosedLinePath,
-    start: P2,
-    start_distance: N,
-    end: P2,
-    end_distance: N,
-    midpoint: P2,
-    left_inside: [bool; 2],
-    right_inside: [bool; 2],
-}
-
-#[derive(PartialEq, Copy, Clone, Debug)]
-pub enum PieceEquivalence {
-    Different,
-    Forward,
-    Backward,
-}
-
-impl<'a> BoundaryPiece<'a> {
-    fn new(
-        on_boundary: &'a ClosedLinePath,
-        start: P2,
-        start_distance: N,
-        end: P2,
-        end_distance: N,
-        right_inside: [bool; 2],
-    ) -> Option<Self> {
-        if start_distance.rough_eq_by(end_distance, EQUIVALENCE_TOLERANCE) {
-            None
-        } else {
-            Some(BoundaryPiece {
-                on_boundary,
-                start,
-                start_distance,
-                end,
-                end_distance,
-                right_inside,
-                left_inside: [false, false],
-                midpoint: on_boundary.midpoint_between(start_distance, end_distance),
-            })
-        }
-    }
-
-    fn new_unintersected(boundary: &'a ClosedLinePath, right_inside: [bool; 2]) -> Self {
-        Self::new(
-            boundary,
-            boundary.path().start(),
-            0.0,
-            boundary.path().end(),
-            boundary.path().length(),
-            right_inside,
-        ).expect("Unintersected pieces should always be valid")
-    }
-
-    fn to_path(&self) -> Option<LinePath> {
-        self.on_boundary
-            .subsection(self.start_distance, self.end_distance)
-    }
-
-    fn equivalence(&self, other: &Self) -> PieceEquivalence {
-        let midpoints_eq = self
-            .midpoint
-            .rough_eq_by(other.midpoint, EQUIVALENCE_TOLERANCE);
-
-        if midpoints_eq {
-            if self.start.rough_eq_by(other.start, EQUIVALENCE_TOLERANCE)
-                && self.end.rough_eq_by(other.end, EQUIVALENCE_TOLERANCE)
-            {
-                PieceEquivalence::Forward
-            } else if self.start.rough_eq_by(other.end, EQUIVALENCE_TOLERANCE)
-                && self.end.rough_eq_by(other.start, EQUIVALENCE_TOLERANCE)
-            {
-                PieceEquivalence::Backward
-            } else {
-                PieceEquivalence::Different
-            }
-        } else {
-            PieceEquivalence::Different
-        }
-    }
-}
-
-pub struct AreaSplitResult<'a> {
-    pieces: Vec<BoundaryPiece<'a>>,
-}
-
-const SUBJECT_A: usize = 0;
-const SUBJECT_B: usize = 1;
-const SUBJECTS: [usize; 2] = [SUBJECT_A, SUBJECT_B];
-fn other_subject(subject: usize) -> usize {
-    if subject == SUBJECT_A {
-        SUBJECT_B
-    } else {
-        SUBJECT_A
-    }
-}
-
-impl Area {
-    pub fn split<'a>(&'a self, b: &'a Self) -> AreaSplitResult<'a> {
-        self.split_helper(b, false)
-            .expect("should always return Some(_) with return_on_no_intersection = false")
-    }
-
-    pub fn split_if_intersects<'a>(&'a self, b: &'a Self) -> Option<AreaSplitResult<'a>> {
-        self.split_helper(b, true)
-    }
-
-    fn split_helper<'a>(
-        &'a self,
-        b: &'a Self,
-        return_on_no_intersection: bool,
-    ) -> Option<AreaSplitResult<'a>> {
-        let ab = [self, b];
-
-        let mut intersection_distances_points = [
-            vec![Vec::<(N, P2)>::new(); self.primitives.len()],
-            vec![Vec::<(N, P2)>::new(); b.primitives.len()],
-        ];
-
-        let mut any_intersection = false;
-
-        for (i_a, primitive_a) in self.primitives.iter().enumerate() {
-            for (i_b, primitive_b) in b.primitives.iter().enumerate() {
-                for intersection in (&primitive_a.boundary, &primitive_b.boundary).intersect() {
-                    any_intersection = true;
-                    intersection_distances_points[SUBJECT_A][i_a]
-                        .push((intersection.along_a, intersection.position));
-                    intersection_distances_points[SUBJECT_B][i_b]
-                        .push((intersection.along_b, intersection.position));
-                }
-            }
-        }
-
-        if return_on_no_intersection && !any_intersection {
-            return None;
-        }
-
-        let boundary_pieces = SUBJECTS
-            .iter()
-            .flat_map(|&subject| {
-                let mut unintersected_pieces = Vec::<BoundaryPiece>::new();
-
-                for (primitive_i, primitive_distances_points) in intersection_distances_points
-                    [subject]
-                    .iter_mut()
-                    .enumerate()
-                {
-                    if primitive_distances_points.len() <= 1 {
-                        primitive_distances_points.clear();
-                        unintersected_pieces.push(BoundaryPiece::new_unintersected(
-                            &ab[subject].primitives[primitive_i].boundary,
-                            [subject == SUBJECT_A, subject == SUBJECT_B],
-                        ))
-                    } else {
-                        primitive_distances_points
-                            .sort_unstable_by_key(|&(along, _)| OrderedFloat(along));
-
-                        primitive_distances_points.dedup_by(|(along_a, _), (along_b, _)| {
-                            (*along_b - *along_a).abs() < THICKNESS
-                        });
-
-                        // to close the loop when taking piece-cutting windows
-                        let first = primitive_distances_points[0];
-                        primitive_distances_points.push(first);
-                    }
-                }
-
-                // println!(
-                //     "INTERSECTION POINTS DISTANCES \n{:?}",
-                //     intersection_distances_points
-                // );
-
-                let mut boundary_pieces_initial = unintersected_pieces
-                    .into_iter()
-                    .chain(
-                        intersection_distances_points[subject]
-                            .iter()
-                            .enumerate()
-                            .flat_map(|(primitive_i, primitive_distances_points)| {
-                                primitive_distances_points
-                                    .windows(2)
-                                    .filter_map(|distance_point_pair| {
-                                        let (start_distance, start) = distance_point_pair[0];
-                                        let (end_distance, end) = distance_point_pair[1];
-
-                                        BoundaryPiece::new(
-                                            &ab[subject].primitives[primitive_i].boundary,
-                                            start,
-                                            start_distance,
-                                            end,
-                                            end_distance,
-                                            [subject == SUBJECT_A, subject == SUBJECT_B],
-                                        )
-                                    })
-                                    .collect::<Vec<_>>()
-                            }),
-                    )
-                    .collect::<Vec<_>>();
-
-                // println!(
-                //     "BOUNDARY PIECES INITIAL \n{:#?}",
-                //     boundary_pieces_initial
-                //         .iter()
-                //         .map(|piece| format!(
-                //             "({}/{} - {} - {}/{}",
-                //             piece.start,
-                //             piece.start_distance,
-                //             piece.midpoint,
-                //             piece.end,
-                //             piece.end_distance
-                //         ))
-                //         .collect::<Vec<_>>()
-                // );
-
-                for boundary_piece in &mut boundary_pieces_initial {
-                    match ab[other_subject(subject)].location_of(boundary_piece.midpoint) {
-                        AreaLocation::Inside => {
-                            boundary_piece.left_inside[other_subject(subject)] = true;
-                            boundary_piece.right_inside[other_subject(subject)] = true;
-                        }
-                        AreaLocation::Outside => {
-                            // already correctly initialized
-                        }
-                        AreaLocation::Boundary => {
-                            // there will be a coincident boundary piece
-                            // we will merge inside info in uniqueness step
-                        }
-                    }
-                }
-
-                boundary_pieces_initial
-            })
-            .collect::<Vec<_>>();
-
-        let mut unique_boundary_pieces = Vec::<BoundaryPiece>::new();
-
-        for boundary_piece in boundary_pieces {
-            let found_merge = {
-                // TODO: detect if several pieces are equivalent to one longer one
-                //       - maybe we need to simplify paths sometimes to prevent this?
-                //       - wait, this should never happen?
-                // TODO: any way to not make this O(n^2) ?
-                let maybe_equivalent = unique_boundary_pieces
-                    .iter_mut()
-                    .map(|other_piece| (boundary_piece.equivalence(other_piece), other_piece))
-                    .find(|(equivalence, _)| *equivalence != PieceEquivalence::Different);
-
-                if let Some((equivalence, equivalent_piece)) = maybe_equivalent {
-                    if equivalence == PieceEquivalence::Forward {
-                        equivalent_piece.left_inside[SUBJECT_A] |=
-                            boundary_piece.left_inside[SUBJECT_A];
-                        equivalent_piece.left_inside[SUBJECT_B] |=
-                            boundary_piece.left_inside[SUBJECT_B];
-                        equivalent_piece.right_inside[SUBJECT_A] |=
-                            boundary_piece.right_inside[SUBJECT_A];
-                        equivalent_piece.right_inside[SUBJECT_B] |=
-                            boundary_piece.right_inside[SUBJECT_B];
-                    } else {
-                        equivalent_piece.left_inside[SUBJECT_A] |=
-                            boundary_piece.right_inside[SUBJECT_A];
-                        equivalent_piece.left_inside[SUBJECT_B] |=
-                            boundary_piece.right_inside[SUBJECT_B];
-                        equivalent_piece.right_inside[SUBJECT_A] |=
-                            boundary_piece.left_inside[SUBJECT_A];
-                        equivalent_piece.right_inside[SUBJECT_B] |=
-                            boundary_piece.left_inside[SUBJECT_B];
-                    }
-                    true
-                } else {
-                    false
-                }
-            };
-
-            if !found_merge {
-                unique_boundary_pieces.push(boundary_piece);
-            }
-        }
-
-        // println!(
-        //     "UNIQUE PIECES \n{:#?}",
-        //     unique_boundary_pieces
-        //         .iter()
-        //         .map(|piece| format!(
-        //             "({}/{} - {} - {}/{}, Path: {:?}",
-        //             piece.start,
-        //             piece.start_distance,
-        //             piece.midpoint,
-        //             piece.end,
-        //             piece.end_distance,
-        //             piece
-        //                 .to_path()
-        //                 .unwrap()
-        //                 .points
-        //                 .iter()
-        //                 .map(|p| format!("{}", p))
-        //                 .collect::<Vec<_>>()
-        //         ))
-        //         .collect::<Vec<_>>()
-        // );
-
-        Some(AreaSplitResult {
-            pieces: unique_boundary_pieces,
-        })
-    }
-}
-
-pub enum PieceRole {
-    Forward,
-    Backward,
-    NonContributing,
-}
-
 use line_path::ConcatError;
 
 #[derive(Debug)]
 pub enum AreaError {
     WeldingShouldWork(ConcatError),
     LeftOver(String),
-}
-
-impl<'a> AreaSplitResult<'a> {
-    pub fn get_area<F: Fn(&BoundaryPiece<'a>) -> PieceRole>(
-        &self,
-        piece_filter: F,
-    ) -> Result<Area, AreaError> {
-        let paths = self
-            .pieces
-            .iter()
-            .filter_map(|piece| match piece_filter(piece) {
-                PieceRole::Forward => piece.to_path(),
-                PieceRole::Backward => piece.to_path().map(|path| path.reverse()),
-                PieceRole::NonContributing => None,
-            })
-            .collect::<Vec<_>>();
-
-        Area::from_pieces(paths)
-    }
-
-    pub fn intersection(&self) -> Result<Area, AreaError> {
-        self.get_area(|piece| {
-            if piece.right_inside[SUBJECT_A] && piece.right_inside[SUBJECT_B] {
-                PieceRole::Forward
-            } else {
-                PieceRole::NonContributing
-            }
-        })
-    }
-
-    pub fn union(&self) -> Result<Area, AreaError> {
-        self.get_area(|piece| {
-            if (piece.right_inside[SUBJECT_A] || piece.right_inside[SUBJECT_B])
-                && !(piece.left_inside[SUBJECT_A] || piece.left_inside[SUBJECT_B])
-            {
-                PieceRole::Forward
-            } else {
-                PieceRole::NonContributing
-            }
-        })
-    }
-
-    pub fn a_minus_b(&self) -> Result<Area, AreaError> {
-        self.get_area(|piece| {
-            if piece.right_inside[SUBJECT_A] && !piece.right_inside[SUBJECT_B] {
-                PieceRole::Forward
-            } else if piece.left_inside[SUBJECT_A] && !piece.left_inside[SUBJECT_B] {
-                PieceRole::Backward
-            } else {
-                PieceRole::NonContributing
-            }
-        })
-    }
-
-    pub fn b_minus_a(&self) -> Result<Area, AreaError> {
-        self.get_area(|piece| {
-            if piece.right_inside[SUBJECT_B] && !piece.right_inside[SUBJECT_A] {
-                PieceRole::Forward
-            } else if piece.left_inside[SUBJECT_B] && !piece.left_inside[SUBJECT_A] {
-                PieceRole::Backward
-            } else {
-                PieceRole::NonContributing
-            }
-        })
-    }
 }
 
 impl Area {
@@ -663,4 +296,15 @@ impl Area {
             complete_paths.into_iter().map(PrimitiveArea::new).collect(),
         ))
     }
+}
+
+#[test]
+fn area_area_test() {
+    assert_rough_eq_by!(Area::new_simple(ClosedLinePath::new(LinePath::new(vec![
+        P2::new(0.0, 0.0),
+        P2::new(3.0, 0.0),
+        P2::new(3.0, 4.0),
+        P2::new(0.0, 4.0),
+        P2::new(0.0, 0.0),
+    ]).unwrap()).unwrap()).area(), 12.0, 0.1)
 }
