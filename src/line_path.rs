@@ -237,6 +237,7 @@ pub enum ConcatError {
 }
 
 // TODO: this is a super hacky newtype to avoid weird problems with impl Iterator<Item = V2>
+#[derive(Copy, Clone, Debug)]
 pub struct ShiftVector(pub V2);
 
 /// Combination/Modification
@@ -293,16 +294,24 @@ impl LinePath {
     }
 
     pub fn shift_orthogonally_vectors<'a>(&'a self) -> impl Iterator<Item = ShiftVector> + 'a {
-        // TODO: THIS IS WRONG!! THE SHIFT DISTANCE DEPENDS ON ANGLE!!!
-        let angle_bisectors = self.points.windows(3).map(|triplet| -> ShiftVector {
-            ShiftVector((LineSegment::new(triplet[0], triplet[1]).direction()
-                + LineSegment::new(triplet[1], triplet[2]).direction())
+        fn bisector(a: P2, b: P2, c: P2) -> ShiftVector {
+            let bisecting_direction = (LineSegment::new(a, b).direction()
+                + LineSegment::new(b, c).direction())
                 .orthogonal_right()
-                .normalize())
-        });
+                .normalize();
+            let amount_too_short = LineSegment::new(a, b).direction().orthogonal_right().dot(&bisecting_direction);
+            ShiftVector(bisecting_direction * (1.0 / amount_too_short))
+        }
+        let angle_bisectors = self.points.windows(3).map(|triplet| bisector(triplet[0], triplet[1], triplet[2]));
 
-        let first_vector: ShiftVector = ShiftVector(self.first_segment().direction().orthogonal_right());
-        let last_vector: ShiftVector = ShiftVector(self.last_segment().direction().orthogonal_right());
+        let (first_vector, last_vector) = if self.points.len() >= 3 && self.start().rough_eq(self.end()) {
+            let first_vector = bisector(self.points[self.points.len() - 2], self.points[0], self.points[1]);
+            (first_vector, first_vector)
+        } else {
+            let first_vector: ShiftVector = ShiftVector(self.first_segment().direction().orthogonal_right());
+            let last_vector: ShiftVector = ShiftVector(self.last_segment().direction().orthogonal_right());
+            (first_vector, last_vector)
+        };
 
         Some(first_vector)
             .into_iter()
