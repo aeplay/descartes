@@ -55,6 +55,14 @@ impl PrimitiveArea {
                 .all(|other_segment| self.contains(other_segment.start()))
     }
 
+    pub fn add_winding_numbers_batching(&self, points: &[P2], winding_numbers: &mut [f32]) {
+        for segment in self.boundary.path().segments() {
+            for (i, point) in points.iter().enumerate() {
+                winding_numbers[i] += segment.winding_angle(*point) / (2.0 * PI);
+            }
+        }
+    }
+
     pub fn winding_number(&self, point: P2) -> f32 {
         (self
             .boundary
@@ -143,6 +151,12 @@ impl Area {
             .iter()
             .map(|primitive| primitive.winding_number(point))
             .sum()
+    }
+
+    pub fn add_winding_numbers_batching(&self, points: &[P2], winding_numbers: &mut [f32]) {
+        for primitive in &self.primitives {
+            primitive.add_winding_numbers_batching(points, winding_numbers);
+        }
     }
 
     pub fn area(&self) -> N {
