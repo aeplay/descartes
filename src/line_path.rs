@@ -267,21 +267,44 @@ impl LinePath {
     }
 
     pub fn subsection(&self, start: N, end: N) -> Option<Self> {
-        LinePath::new(
-            Some(self.along(start))
-                .into_iter()
-                .chain(self.points.iter().zip(self.distances.iter()).filter_map(
-                    |(&point, &distance)| {
-                        if start < distance && end > distance {
+        if (start > end && self.start().rough_eq(self.end())) {
+            // TODO: Handle "negative start"
+            LinePath::new(
+                Some(self.along(start))
+                    .into_iter()
+                    .chain(self.points.iter().zip(self.distances.iter()).filter_map(|(&point, &distance)|
+                        if start < distance {
                             Some(point)
                         } else {
                             None
                         }
-                    },
-                ))
-                .chain(Some(self.along(end)))
-                .collect(),
-        )
+                    )).chain(self.points.iter().zip(self.distances.iter()).filter_map(|(&point, &distance)|
+                        if end > distance {
+                            Some(point)
+                        } else {
+                            None
+                        }
+                    ))
+                    .chain(Some(self.along(end)))
+                    .collect()
+            )
+        } else {
+            LinePath::new(
+                Some(self.along(start))
+                    .into_iter()
+                    .chain(self.points.iter().zip(self.distances.iter()).filter_map(
+                        |(&point, &distance)| {
+                            if start < distance && end > distance {
+                                Some(point)
+                            } else {
+                                None
+                            }
+                        },
+                    ))
+                    .chain(Some(self.along(end)))
+                    .collect(),
+            )
+        }
     }
 
     pub fn dash(&self, dash_length: N, gap_length: N) -> DashIterator {
