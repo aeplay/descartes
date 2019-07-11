@@ -267,7 +267,7 @@ impl LinePath {
     }
 
     pub fn subsection(&self, start: N, end: N) -> Option<Self> {
-        if (start > end && self.start().rough_eq(self.end())) {
+        if start > end && self.start().rough_eq(self.end()) {
             // TODO: Handle "negative start"
             LinePath::new(
                 Some(self.along(start))

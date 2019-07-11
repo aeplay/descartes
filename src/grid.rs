@@ -40,7 +40,7 @@ impl<M: Hash + Eq + Clone> Grid<M> {
                     set.insert(member.clone());
                     vacant.insert(set);
                 }
-                Entry::Occupied(mut occupied) => {
+                Entry::Occupied(occupied) => {
                     occupied.into_mut().insert(member.clone());
                 }
             }
@@ -64,7 +64,7 @@ impl<M: Hash + Eq + Clone> Grid<M> {
                     set.insert(member.clone());
                     vacant.insert(set);
                 }
-                Entry::Occupied(mut occupied) => {
+                Entry::Occupied(occupied) => {
                     visitor(occupied.get());
                     occupied.into_mut().insert(member.clone());
                 }

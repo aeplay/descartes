@@ -67,7 +67,7 @@ impl<L: Clone> Embedding<L> {
                                 Entry::Vacant(vacant) => {
                                     vacant.insert(vec![other_intersection]);
                                 }
-                                Entry::Occupied(mut occupied) => {
+                                Entry::Occupied(occupied) => {
                                     occupied.into_mut().push(other_intersection);
                                 }
                             }
