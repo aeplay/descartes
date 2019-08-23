@@ -159,7 +159,7 @@ impl<L: Clone> Embedding<L> {
     }
 
     fn insert_whole_piece(&mut self, path: LinePath, label: L) {
-        let piece_idx = self.pieces.next_index();
+        let piece_idx = self.pieces.next_push_index();
 
         for (segment_idx, segment) in path.segments().enumerate() {
             self.piece_segment_grid.insert_unchecked(
@@ -228,16 +228,10 @@ impl<L: Clone> Embedding<L> {
         &mut self,
         mut mapper: M,
     ) -> Embedding<L2> {
-        let mut new_pieces = StableVec::new();
-        new_pieces.grow(self.pieces.capacity());
-
-        for piece_idx in self.pieces.keys() {
-            let (piece, old_label) = &self.pieces[piece_idx];
+        let mut new_pieces = StableVec::with_capacity(self.pieces.capacity());
+        for (piece_idx, (piece, old_label)) in &self.pieces {
             let new_label = mapper(&piece, &old_label, self);
-            new_pieces
-                .insert_into_hole(piece_idx, (piece.clone(), new_label))
-                .ok()
-                .expect("Index in clone should be free!");
+            new_pieces.insert(piece_idx, (piece.clone(), new_label));
         }
 
         Embedding {
@@ -247,23 +241,17 @@ impl<L: Clone> Embedding<L> {
     }
 
     pub fn map_labels_in_place<M: FnMut(&LinePath, &L, &Self) -> L>(&mut self, mut mapper: M) {
-        let mut new_pieces = StableVec::new();
-        new_pieces.grow(self.pieces.capacity());
-
-        for piece_idx in self.pieces.keys() {
-            let (piece, old_label) = &self.pieces[piece_idx];
+        let mut new_pieces = StableVec::with_capacity(self.pieces.capacity());
+        for (piece_idx, (piece, old_label)) in &self.pieces {
             let new_label = mapper(&piece, &old_label, self);
-            new_pieces
-                .insert_into_hole(piece_idx, (piece.clone(), new_label))
-                .ok()
-                .expect("Index in clone should be free!");
+            new_pieces.insert(piece_idx, (piece.clone(), new_label));
         }
 
         self.pieces = new_pieces;
     }
 
     pub fn retain_pieces<P: FnMut(&LinePath, &L, &Self) -> bool>(&mut self, mut predicate: P) {
-        for piece_idx in 0..self.pieces.next_index() {
+        for piece_idx in 0..self.pieces.next_push_index() {
             let (existed, keep) = self
                 .pieces
                 .get(piece_idx)
@@ -309,7 +297,7 @@ fn embedding_test() {
     );
 
     assert_eq!(
-        embedding.pieces.iter().cloned().collect::<Vec<_>>(),
+        embedding.pieces.values().cloned().collect::<Vec<_>>(),
         vec![
             (
                 LinePath::new(vec![P2::new(0.0, 0.0), P2::new(0.5, 0.0)]).unwrap(),

@@ -52,8 +52,8 @@ impl<L: PartialEq + Eq + Clone + Hash + ::std::fmt::Debug> AreaEmbedding<L> {
             return;
         }
 
-        let keys = self.embedding.pieces.keys().collect::<Vec<_>>();
-        for piece_idx in keys {
+        let indices = self.embedding.pieces.indices().collect::<Vec<_>>();
+        for piece_idx in indices {
             let (midpoint, midpoint_direction, own_label) = {
                 let (piece, area_label) = &self.embedding.pieces[piece_idx];
                 let half_along = piece.length() / 2.0;
@@ -228,7 +228,7 @@ impl<'a, L: PartialEq + Eq + Clone + Hash + 'static> AreaEmbeddingView<'a, L> {
             .area_embedding
             .embedding
             .pieces
-            .iter()
+            .values()
             .filter_map(|(piece, area_labels)| {
                 let left_labels = &area_labels.left_labels;
                 let mut right_labels = area_labels.right_labels.clone();
