@@ -165,7 +165,7 @@ impl<L: PartialEq + Eq + Clone + Hash + ::std::fmt::Debug> AreaEmbedding<L> {
 
 pub enum AreaFilter<L: PartialEq + Eq + Clone + Hash> {
     Always,
-    Function(Box<Fn(&[L]) -> bool>),
+    Function(Box<dyn Fn(&[L]) -> bool>),
     Not(Box<AreaFilter<L>>),
     And(Box<AreaFilter<L>>, Box<AreaFilter<L>>),
     Or(Box<AreaFilter<L>>, Box<AreaFilter<L>>),

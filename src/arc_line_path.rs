@@ -44,6 +44,10 @@ pub struct ArcLinePath {
 const ARC_DIRECTION_TOLERANCE: N = 0.0001;
 const CURVE_LINEARIZATION_MAX_ANGLE: N = 0.1;
 
+pub fn direction_along_line(start: P2, start_direction: V2, end: P2) -> bool {
+    start_direction.rough_eq_by((end - start).normalize(), ARC_DIRECTION_TOLERANCE)
+}
+
 /// Creation
 impl ArcLinePath {
     pub fn line(start: P2, end: P2) -> Option<Self> {
@@ -59,7 +63,7 @@ impl ArcLinePath {
     pub fn arc(start: P2, start_direction: V2, end: P2) -> Option<Self> {
         if (end - start).norm() <= MIN_ARC_LENGTH {
             None
-        } else if start_direction.rough_eq_by((end - start).normalize(), ARC_DIRECTION_TOLERANCE) {
+        } else if direction_along_line(start, start_direction, end) {
             Self::line(start, end)
         } else {
             if let Some(segment) =
