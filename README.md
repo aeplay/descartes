@@ -38,4 +38,13 @@ It internally uses...
 
 - [X] "Thick" primitives for tolerances
 
+## Ports
+
+[descartes-d](https://github.com/chances/descartes-d#readme) for the [D programming language](https://dlang.org)
+
+[![DUB Package](https://img.shields.io/dub/v/descartes.svg)](https://code.dlang.org/packages/descartes)
+![Descartes CI](https://github.com/chances/descartes-d/workflows/Descartes%20CI/badge.svg?branch=master)
+
+## Library Name
+
 descartes is named after [René Descartes](https://en.wikipedia.org/wiki/René_Descartes), the father of analytical geometry.
